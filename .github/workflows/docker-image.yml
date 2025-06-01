@@ -41,7 +41,7 @@ jobs:
         password: ${{ secrets.CR_PAT }}
 
     - name: Build and Push
-      uses: docker/build-push-action@v5
+      uses: aquasecurity/trivy-action@0.11.2
       with:
         context: .
         push: true
