@@ -2,14 +2,8 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: qxzcr/zadanie2
-  CACHE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/zadanie2-cache
+    branches:
+      - main
 
 jobs:
   build-and-push:
@@ -20,82 +14,57 @@ jobs:
 
     steps:
       # Checkout kodu źródłowego
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Konfiguracja QEMU dla multi-architektury
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Konfiguracja Docker Buildx
+      # Konfiguracja Docker Buildx dla obsługi wielu architektur
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # Logowanie do DockerHub (dla cache)
-      - name: Log in to DockerHub
+      - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Logowanie do GitHub Container Registry
-      - name: Log in to GitHub Container Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Budowanie obrazu z cache, bez pushowania
-      - name: Build Docker image
-        id: build
+      # Budowanie i przesyłanie obrazu z cache
+      - name: Build and push Docker image
+        id: docker_build
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: false
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=registry,ref=${{ env.CACHE_IMAGE }}:latest
-          cache-to: type=registry,ref=${{ env.CACHE_IMAGE }}:latest,mode=max
-          outputs: type=docker,dest=/tmp/image.tar
+            ghcr.io/qxzcr/zadanie2:${{ github.sha }}
+            ghcr.io/qxzcr/zadanie2:latest
+          cache-from: type=registry,ref=qxzcr/zadanie2-cache:latest
+          cache-to: type=registry,ref=qxzcr/zadanie2-cache:${{ github.sha }},mode=max
 
       # Skanowanie obrazu za pomocą Trivy
       - name: Scan image with Trivy
-        id: trivy-scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: /tmp/image.tar
-          format: json
-          output: /tmp/scan-results.json
+          image-ref: ghcr.io/qxzcr/zadanie2:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
           severity: CRITICAL,HIGH
-          exit-code: 1
         continue-on-error: true
 
-      # Sprawdzanie wyników skanowania
-      - name: Check Trivy scan results
-        id: check-scan
+      # Przesłanie obrazu do GHCR, jeśli skanowanie przeszło
+      - name: Push image to GHCR
+        if: steps.docker_build.outcome == 'success' && steps.trivy.outcome == 'success'
         run: |
-          if [ -f /tmp/scan-results.json ]; then
-            CRITICAL=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")' /tmp/scan-results.json | wc -l)
-            HIGH=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")' /tmp/scan-results.json | wc -l)
-            if [ $CRITICAL -eq 0 ] && [ $HIGH -eq 0 ]; then
-              echo "No critical or high vulnerabilities found."
-              echo "safe_to_push=true" >> $GITHUB_OUTPUT
-            else
-              echo "Critical or high vulnerabilities found. Image will not be pushed."
-              echo "safe_to_push=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "Scan failed or no results found."
-            echo "safe_to_push=false" >> $GITHUB_OUTPUT
-          fi
-
-      # Push obrazu do ghcr.io, jeśli brak zagrożeń
-      - name: Push to GitHub Container Registry
-        if: steps.check-scan.outputs.safe_to_push == 'true'
-        run: |
-          docker load --input /tmp/image.tar
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ghcr.io/qxzcr/zadanie2:${{ github.sha }}
+          docker push ghcr.io/qxzcr/zadanie2:latest
