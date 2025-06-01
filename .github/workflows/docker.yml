@@ -35,11 +35,11 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build and cache Docker image
+    - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: true  # Сразу пушим образ
+        push: true
         platforms: linux/amd64,linux/arm64
         tags: ${{ env.IMAGE_NAME }}:latest
         cache-from: type=registry,ref=${{ env.CACHE_IMAGE }}
