@@ -6,7 +6,7 @@ on:
 
 env:
   IMAGE_NAME: ghcr.io/qxzcr/zadanie2
-  CACHE_NAME:  yaxiiw/zadanie2-cache
+  CACHE_NAME: yaxiiw/zadanie2-cache
 
 jobs:
   build-and-push:
@@ -38,7 +38,7 @@ jobs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.CR_PAT }}  
+        password: ${{ secrets.CR_PAT }}
 
     - name: Build and Push
       uses: docker/build-push-action@v5
