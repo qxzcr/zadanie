@@ -5,8 +5,8 @@ on:
     branches: [ "main" ]
 
 env:
-  IMAGE_NAME: ghcr.io/qxzcr/zadanie
-  CACHE_IMAGE: yaxiiw/zadanie-cache
+  IMAGE_NAME: ghcr.io/qxzcr/zadanie2
+  CACHE_IMAGE: yaxiiw/zadanie2-cache
 
 jobs:
   build-and-push:
