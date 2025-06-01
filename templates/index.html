@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pogoda</title>
+</head>
+<body>
+    <!-- Nagłówek strony -->
+    <h1>Sprawdź pogodę</h1>
+
+    <!-- Formularz do wyboru kraju i miasta -->
+    <form method="POST">
+        <!-- Wybór kraju -->
+        <label for="country">Wybierz kraj:</label>
+        <select name="country" id="country" onchange="this.form.submit()">
+            {% for country in countries %}
+                <option value="{{ country }}" {% if country == selected_country %}selected{% endif %}>{{ country }}</option>
+            {% endfor %}
+        </select>
+
+        <!-- Wybór miasta -->
+        <label for="city">Wybierz miasto:</label>
+        <select name="city" id="city">
+            {% for city in cities %}
+                <option value="{{ city }}">{{ city }}</option>
+            {% endfor %}
+        </select>
+
+        <!-- Przycisk do zatwierdzenia wyboru -->
+        <button type="submit">Sprawdź</button>
+    </form>
+
+    <!-- Wyświetlenie pogody, jeśli dane są dostępne -->
+    {% if weather_data %}
+        <h2>Pogoda w {{ weather_data.city }}, {{ weather_data.country }}</h2>
+        <p>Temperatura: {{ weather_data.temperature }}°C</p>
+        <p>Opis: {{ weather_data.description }}</p>
+        <p>Wilgotność: {{ weather_data.humidity }}%</p>
+    {% endif %}
+</body>
+</html>
