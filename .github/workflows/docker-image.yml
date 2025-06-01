@@ -1,22 +1,20 @@
-name: Build and Push Multiarch Docker Image
+name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
 
 env:
-  IMAGE_NAME: ghcr.io/qxzcr/zadanie
-  CACHE_NAME: yaxiiw/zadanie2-cache
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  CACHE_REPO: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/cache
 
 jobs:
-  build-and-push:
-    name: Build & Push to GHCR
+  build:
     runs-on: ubuntu-latest
-
     permissions:
-      packages: write
       contents: read
-
+      packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,34 +25,38 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to DockerHub
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Login to DockerHub (for cache)
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.CR_PAT }}
-
-      - name: Build and Push
+      - name: Build and push image
+        id: build-and-push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          push: true
+          context: ./app
           platforms: linux/amd64,linux/arm64
-          tags: ${{ env.IMAGE_NAME }}:latest
-          cache-from: type=registry,ref=${{ env.CACHE_NAME }}:latest
-          cache-to: type=registry,ref=${{ env.CACHE_NAME }}:latest,mode=max
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.CACHE_REPO }}:buildcache
+          cache-to: type=registry,ref=${{ env.CACHE_REPO }}:buildcache,mode=max
 
-      - name: Scan for vulnerabilities
-        uses: aquasecurity/trivy-action@v0.11.2
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.IMAGE_NAME }}:latest
           format: 'table'
-          severity: 'CRITICAL,HIGH'
-          exit-code: 1
+          exit-code: '1'
           ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
