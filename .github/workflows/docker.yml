@@ -2,69 +2,67 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
+
+env:
+  IMAGE_NAME: ghcr.io/qxzcr/zadanie2
+  CACHE_IMAGE: yaxiiw/zadanie2-cache
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
-      # Checkout kodu źródłowego
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      # Konfiguracja Docker Buildx dla obsługi wielu architektur
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
 
-      # Logowanie do DockerHub (dla cache)
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      # Logowanie do GitHub Container Registry
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Budowanie i przesyłanie obrazu z cache
-      - name: Build and push Docker image
-        id: docker_build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: false
-          tags: |
-            ghcr.io/qxzcr/zadanie2:${{ github.sha }}
-            ghcr.io/qxzcr/zadanie2:latest
-          cache-from: type=registry,ref=qxzcr/zadanie2-cache:latest
-          cache-to: type=registry,ref=qxzcr/zadanie2-cache:${{ github.sha }},mode=max
+    - name: Log in to DockerHub 
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Skanowanie obrazu za pomocą Trivy
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ghcr.io/qxzcr/zadanie2:${{ github.sha }}
-          format: table
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-        continue-on-error: true
+    - name: Build and cache Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        platforms: linux/amd64,linux/arm64
+        tags: |
+          ${{ env.IMAGE_NAME }}:latest
+        cache-from: type=registry,ref=${{ env.CACHE_IMAGE }}
+        cache-to: type=registry,ref=${{ env.CACHE_IMAGE }},mode=max
+        outputs: type=docker,dest=/tmp/image.tar
 
-      # Przesłanie obrazu do GHCR, jeśli skanowanie przeszło
-      - name: Push image to GHCR
-        if: steps.docker_build.outcome == 'success' && steps.trivy.outcome == 'success'
-        run: |
-          docker push ghcr.io/qxzcr/zadanie2:${{ github.sha }}
-          docker push ghcr.io/qxzcr/zadanie2:latest
+    - name: Scan image for vulnerabilities
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'docker-archive:/tmp/image.tar'
+        format: 'table'
+        severity: 'CRITICAL,HIGH'
+        exit-code: '1'
+
+    - name: Push image (only if scan passed)
+      if: success()
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        platforms: linux/amd64,linux/arm64
+        tags: |
+          ${{ env.IMAGE_NAME }}:latest
+        cache-from: type=registry,ref=${{ env.CACHE_IMAGE }}
+        cache-to: type=registry,ref=${{ env.CACHE_IMAGE }},mode=max
