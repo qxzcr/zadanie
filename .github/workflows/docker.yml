@@ -6,7 +6,7 @@ on:
 
 env:
   IMAGE_NAME: ghcr.io/qxzcr/zadanie
-  CACHE_IMAGE: yaxiiw/zadanie2-cache
+  CACHE_IMAGE: yaxiiw/zadanie-cache
 
 jobs:
   build-and-push:
