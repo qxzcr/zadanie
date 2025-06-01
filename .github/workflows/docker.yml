@@ -51,7 +51,7 @@ jobs:
         cache-to: type=registry,ref=${{ env.CACHE_NAME }}:latest,mode=max
 
     - name: Scan for vulnerabilities
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.11.2
       with:
         image-ref: ${{ env.IMAGE_NAME }}:latest
         format: 'table'
