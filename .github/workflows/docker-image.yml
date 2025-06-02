@@ -2,61 +2,62 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches: [main] # Uruchom pipeline  
+  workflow_dispatch:  
 
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
-  CACHE_REPO: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/cache
+  IMAGE_NAME: ghcr.io/${{ github.repository }} # Nazwa obrazu w GitHub Container Registry
+  CACHE_REPO: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/cache # Repozytorium 
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest 
     permissions:
-      contents: read
-      packages: write
+      contents: read # Potrzebne do pobrania kodu
+      packages: write # Wymagane do pushowania obrazów  
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Pobierz kod źródłowy  
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v3 # Umożliwia cross-compilację dla różnych architektur
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3 # (rozszerzony builder Dockera)
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ secrets.GHCR_USERNAME }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          username: ${{ secrets.GHCR_USERNAME }} # Login do GHCR 
+          password: ${{ secrets.GHCR_TOKEN }} # Token do GHCR
 
       - name: Login to DockerHub (for cache)
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }} # Login do DockerHub
+          password: ${{ secrets.DOCKERHUB_TOKEN }} # Token do DockerHub
 
       - name: Build and push image
         id: build-and-push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
+          context: . # Katalog z Dockerfile
+          platforms: linux/amd64,linux/arm64  
+          push: true # Automatycznie wypchnij obraz po zbudowaniu
           tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.CACHE_REPO }}:buildcache
-          cache-to: type=registry,ref=${{ env.CACHE_REPO }}:buildcache,mode=max
+            ${{ env.IMAGE_NAME }}:latest # Tag "latest"
+            ${{ env.IMAGE_NAME }}:${{ github.sha }} # Tag ze skrótem SHA commita (unikalna wersja)
+          cache-from: type=registry,ref=${{ env.CACHE_REPO }}:buildcache # Użyj wcześniejszego cache’u
+          cache-to: type=registry,ref=${{ env.CACHE_REPO }}:buildcache,mode=max # Zapisz cache do DockerHub
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE_NAME }}:latest
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          image-ref: ${{ env.IMAGE_NAME }}:latest # Skanuj świeżo zbudowany obraz
+          format: 'table'  
+          exit-code: '1' # Zakończ jako failed, jeśli znajdzie krytyczne/ważne podatności
+          ignore-unfixed: true 
+          vuln-type: 'os,library' 
+          severity: 'CRITICAL,HIGH' 
